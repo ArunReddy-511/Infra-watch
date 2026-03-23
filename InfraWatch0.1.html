@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>InfraWatch — Public Infrastructure Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        /* ── Reset & Tokens ───────────────────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        :root {
+            --bg: #080e1a;
+            --bg2: #0c1525;
+            --bg3: #111e35;
+            --surface: #16243e;
+            --surface2: #1c2f4f;
+            --border: #1e3358;
+            --border2: #2a4570;
+            --accent: #00d9ff;
+            --accent2: #00a8d4;
+            --green: #00e5a0;
+            --amber: #ffb830;
+            --red: #ff4757;
+            --red2: #cc2a38;
+            --text: #e8eef8;
+            --text2: #8da4c8;
+            --text3: #4a6690;
+            --font-head: 'Syne', sans-serif;
+            --font-body: 'DM Sans', sans-serif;
+            --r: 10px;
+            --r2: 16px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, .45);
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 15px;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ── Scrollbar ────────────────────────────────────────────────── */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg2)
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border2);
+            border-radius: 3px
+        }
+
+        /* ── Top Nav ──────────────────────────────────────────────────── */
+        .nav {
+            position: sticky;
+            top: 0;
+            z-index: 900;
+            background: rgba(8, 14, 26, .88);
+            backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 0 28px;
+            height: 60px;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-head);
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -.5px;
+            text-decoration: none;
+        }
+
+        .nav-brand svg {
+            flex-shrink: 0
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 2px;
+            margin-left: 8px
+        }
+
+        .nav-tab {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: var(--text2);
+            font-family: var(--font-body);
+            font-size: .875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .18s;
+            white-space: nowrap;
+        }
+
+        .nav-tab:hover {
+            background: var(--surface);
+            color: var(--text)
+        }
+
+        .nav-tab.active {
+            background: var(--surface2);
+            color: var(--accent)
+        }
+
+        .nav-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px
+        }
+
+        .badge-alert {
+            background: var(--red);
+            color: #fff;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 20px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 18px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font-body);
+            font-size: .875rem;
+            font-weight: 500;
+            transition: all .18s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #080e1a
+        }
+
+        .btn-primary:hover {
+            background: var(--accent2)
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border2);
+            color: var(--text2)
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent);
+            color: var(--accent)
+        }
+
+        .btn-danger {
+            background: var(--red);
+            color: #fff
+        }
+
+        .btn-danger:hover {
+            background: var(--red2)
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: .8rem
+        }
+
+        /* ── Pages ────────────────────────────────────────────────────── */
+        .page {
+            display: none;
+            padding: 28px;
+            max-width: 1400px;
+            margin: 0 auto
+        }
+
+        .page.active {
+            display: block
+        }
+
+        /* ── Page header ──────────────────────────────────────────────── */
+        .page-header {
+            margin-bottom: 28px
+        }
+
+        .page-header h1 {
+            font-family: var(--font-head);
+            font-size: 1.9rem;
+            font-weight: 800;
+            letter-spacing: -.5px;
+            color: var(--text);
+        }
+
+        .page-header p {
+            color: var(--text2);
+            margin-top: 4px;
+            font-size: .925rem
+        }
+
+        /* ── Stat cards ───────────────────────────────────────────────── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r2);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color .2s, transform .2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border2);
+            transform: translateY(-2px)
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--r2) var(--r2) 0 0;
+        }
+
+        .stat-card.green::before {
+            background: var(--green)
+        }
+
+        .stat-card.amber::before {
+            background: var(--amber)
+        }
+
+        .stat-card.red::before {
+            background: var(--red)
+        }
+
+        .stat-card.blue::before {
+            background: var(--accent)
+        }
+
+        .stat-card.purple::before {
+            background: #9b5de5
+        }
+
+        .stat-num {
+            font-family: var(--font-head);
+            font-size: 2.2rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-card.green .stat-num {
+            color: var(--green)
+        }
+
+        .stat-card.amber .stat-num {
+            color: var(--amber)
+        }
+
+        .stat-card.red .stat-num {
+            color: var(--red)
+        }
+
+        .stat-card.blue .stat-num {
+            color: var(--accent)
+        }
+
+        .stat-card.purple .stat-num {
+            color: #9b5de5
+        }
+
+        .stat-label {
+            color: var(--text2);
+            font-size: .82rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: .5px
+        }
+
+        /* ── Score badge ──────────────────────────────────────────────── */
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            font-family: var(--font-head);
+            font-size: 1rem;
+            font-weight: 800;
+            border: 3px solid;
+            flex-shrink: 0;
+        }
+
+        .score-safe {
+            color: var(--green);
+            border-color: var(--green);
+            background: rgba(0, 229, 160, .1)
+        }
+
+        .score-renovation {
+            color: var(--amber);
+            border-color: var(--amber);
+            background: rgba(255, 184, 48, .1)
+        }
+
+        .score-demolition {
+            color: var(--red);
+            border-color: var(--red);
+            background: rgba(255, 71, 87, .1)
+        }
+
+        /* ── Status pill ──────────────────────────────────────────────── */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: .78rem;
+            font-weight: 600;
+        }
+
+        .status-pill::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%
+        }
+
+        .pill-safe {
+            background: rgba(0, 229, 160, .12);
+            color: var(--green)
+        }
+
+        .pill-safe::before {
+            background: var(--green)
+        }
+
+        .pill-renovation {
+            background: rgba(255, 184, 48, .12);
+            color: var(--amber)
+        }
+
+        .pill-renovation::before {
+            background: var(--amber)
+        }
+
+        .pill-demolition {
+            background: rgba(255, 71, 87, .12);
+            color: var(--red)
+        }
+
+        .pill-demolition::before {
+            background: var(--red);
+            animation: blink 1s infinite
+        }
+
+        .pill-pending {
+            background: rgba(0, 217, 255, .12);
+            color: var(--accent)
+        }
+
+        .pill-pending::before {
+            background: var(--accent)
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .3
+            }
+        }
+
+        /* ── Infrastructure card grid ─────────────────────────────────── */
+        .infra-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 18px;
+        }
+
+        .infra-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r2);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: border-color .2s, transform .2s, box-shadow .2s;
+            cursor: pointer;
+        }
+
+        .infra-card:hover {
+            border-color: var(--border2);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 40px rgba(0, 217, 255, .07);
+        }
+
+        .infra-card-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px
+        }
+
+        .infra-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+        }
+
+        .infra-title {
+            font-family: var(--font-head);
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.2
+        }
+
+        .infra-addr {
+            color: var(--text2);
+            font-size: .8rem;
+            margin-top: 3px
+        }
+
+        .infra-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap
+        }
+
+        .infra-type-badge {
+            font-size: .73rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--surface2);
+            color: var(--text2);
+            border: 1px solid var(--border2);
+        }
+
+        .infra-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid var(--border);
+            padding-top: 14px;
+        }
+
+        .infra-inspect-date {
+            color: var(--text3);
+            font-size: .78rem
+        }
+
+        /* ── Scoreboard ───────────────────────────────────────────────── */
+        .scoreboard {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r2);
+            overflow: hidden;
+        }
+
+        .scoreboard-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            padding: 12px 20px;
+            background: var(--bg3);
+            border-bottom: 1px solid var(--border);
+            font-size: .75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--text3);
+            gap: 12px;
+        }
+
+        .scoreboard-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            gap: 12px;
+            transition: background .15s;
+            cursor: pointer;
+        }
+
+        .scoreboard-row:last-child {
+            border-bottom: none
+        }
+
+        .scoreboard-row:hover {
+            background: var(--bg3)
+        }
+
+        .sb-name {
+            font-weight: 500
+        }
+
+        .sb-sub {
+            font-size: .78rem;
+            color: var(--text2)
+        }
+
+        .score-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-bar-track {
+            flex: 1;
+            height: 6px;
+            background: var(--bg);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width .6s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        .score-val {
+            font-size: .82rem;
+            font-weight: 700;
+            width: 28px;
+            text-align: right
+        }
+
+        /* ── Detail modal ─────────────────────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(4, 8, 18, .85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: all
+        }
+
+        .modal {
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(20px);
+            transition: transform .25s;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, .6);
+        }
+
+        .modal-overlay.open .modal {
+            transform: translateY(0)
+        }
+
+        .modal-hero {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 28px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .modal-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 14px;
+            font-size: 2rem;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .modal-title {
+            font-family: var(--font-head);
+            font-size: 1.4rem;
+            font-weight: 800
+        }
+
+        .modal-addr {
+            color: var(--text2);
+            font-size: .875rem;
+            margin-top: 4px
+        }
+
+        .modal-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px
+        }
+
+        .modal-section h3 {
+            font-family: var(--font-head);
+            font-size: .875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text3);
+            margin-bottom: 12px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text2);
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+        }
+
+        .modal-close:hover {
+            background: var(--red);
+            color: #fff;
+            border-color: var(--red)
+        }
+
+        .modal-relative {
+            position: relative
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .info-item label {
+            display: block;
+            font-size: .75rem;
+            color: var(--text3);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 3px
+        }
+
+        .info-item span {
+            font-size: .9rem;
+            color: var(--text)
+        }
+
+        .inspection-item {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 14px;
+        }
+
+        .inspection-date {
+            font-weight: 700;
+            color: var(--accent);
+            font-size: .875rem
+        }
+
+        .inspection-inspector {
+            color: var(--text2);
+            font-size: .8rem;
+            margin-top: 2px
+        }
+
+        .inspection-findings {
+            color: var(--text);
+            font-size: .85rem;
+            margin-top: 8px;
+            line-height: 1.5
+        }
+
+        .score-gauge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 4px;
+            padding: 20px;
+        }
+
+        .gauge-ring {
+            width: 100px;
+            height: 100px;
+            position: relative;
+        }
+
+        .gauge-ring svg {
+            transform: rotate(-90deg)
+        }
+
+        .gauge-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-num {
+            font-family: var(--font-head);
+            font-size: 1.6rem;
+            font-weight: 800
+        }
+
+        .gauge-label {
+            font-size: .7rem;
+            color: var(--text3);
+            font-weight: 600;
+            text-transform: uppercase
+        }
+
+        /* ── Map page ─────────────────────────────────────────────────── */
+        .map-container {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            gap: 0;
+            height: calc(100vh - 130px);
+            border-radius: var(--r2);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .map-sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--surface);
+            z-index: 10;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 9px 14px 9px 38px;
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: .875rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent)
+        }
+
+        .search-wrap {
+            position: relative
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text3);
+            pointer-events: none;
+            font-size: .9rem;
+        }
+
+        .map-list-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background .15s;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .map-list-item:hover {
+            background: var(--bg3)
+        }
+
+        .map-list-item.selected {
+            background: rgba(0, 217, 255, .06);
+            border-left: 3px solid var(--accent)
+        }
+
+        .map-list-icon {
+            font-size: 1.2rem;
+            margin-top: 2px
+        }
+
+        .map-list-name {
+            font-size: .875rem;
+            font-weight: 500;
+            line-height: 1.3
+        }
+
+        .map-list-addr {
+            font-size: .75rem;
+            color: var(--text2);
+            margin-top: 2px
+        }
+
+        #map {
+            flex: 1
+        }
+
+        /* ── Report / Review forms ────────────────────────────────────── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px
+        }
+
+        .form-group.full {
+            grid-column: 1/-1
+        }
+
+        .form-label {
+            font-size: .8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: var(--text2)
+        }
+
+        .form-input,
+        .form-textarea,
+        .form-select {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: .875rem;
+            padding: 10px 14px;
+            outline: none;
+            transition: border-color .2s;
+            width: 100%;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            border-color: var(--accent)
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px
+        }
+
+        .form-select option {
+            background: var(--bg2)
+        }
+
+        .star-rating {
+            display: flex;
+            gap: 6px;
+            flex-direction: row-reverse;
+            justify-content: flex-end
+        }
+
+        .star-rating input {
+            display: none
+        }
+
+        .star-rating label {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--border2);
+            transition: color .15s;
+        }
+
+        .star-rating label:hover,
+        .star-rating label:hover~label,
+        .star-rating input:checked~label {
+            color: var(--amber)
+        }
+
+        .form-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r2);
+            padding: 28px;
+            max-width: 680px;
+        }
+
+        .form-card h2 {
+            font-family: var(--font-head);
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .form-card p {
+            color: var(--text2);
+            font-size: .875rem;
+            margin-bottom: 24px
+        }
+
+        .severity-select {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap
+        }
+
+        .severity-btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text2);
+            cursor: pointer;
+            font-size: .8rem;
+            font-weight: 600;
+            transition: all .15s;
+        }
+
+        .severity-btn.sel-low {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(0, 229, 160, .1)
+        }
+
+        .severity-btn.sel-medium {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(0, 217, 255, .1)
+        }
+
+        .severity-btn.sel-high {
+            border-color: var(--amber);
+            color: var(--amber);
+            background: rgba(255, 184, 48, .1)
+        }
+
+        .severity-btn.sel-critical {
+            border-color: var(--red);
+            color: var(--red);
+            background: rgba(255, 71, 87, .1)
+        }
+
+        .file-drop {
+            border: 2px dashed var(--border2);
+            border-radius: var(--r);
+            padding: 28px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color .2s;
+            color: var(--text2);
+            font-size: .875rem;
+        }
+
+        .file-drop:hover {
+            border-color: var(--accent);
+            color: var(--text)
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 2000;
+            background: var(--green);
+            color: #080e1a;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: .875rem;
+            transform: translateY(60px);
+            opacity: 0;
+            transition: all .3s;
+            box-shadow: var(--shadow);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1
+        }
+
+        .toast.error {
+            background: var(--red);
+            color: #fff
+        }
+
+        /* ── Inspection timeline ──────────────────────────────────────── */
+        .timeline {
+            position: relative;
+            padding-left: 24px
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -20px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid;
+            background: var(--bg2);
+        }
+
+        .tl-pass .timeline-dot {
+            border-color: var(--green);
+            background: var(--green)
+        }
+
+        .tl-minor .timeline-dot {
+            border-color: var(--amber)
+        }
+
+        .tl-major .timeline-dot {
+            border-color: var(--red)
+        }
+
+        .tl-unsafe .timeline-dot {
+            border-color: var(--red);
+            background: var(--red)
+        }
+
+        .timeline-content {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 14px;
+        }
+
+        .tl-date {
+            font-size: .78rem;
+            color: var(--text3);
+            margin-bottom: 4px
+        }
+
+        .tl-title {
+            font-weight: 600;
+            font-size: .9rem;
+            margin-bottom: 6px
+        }
+
+        /* ── Alert ribbon ─────────────────────────────────────────────── */
+        .alert-banner {
+            background: rgba(255, 71, 87, .1);
+            border: 1px solid rgba(255, 71, 87, .3);
+            border-radius: var(--r);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .alert-banner svg {
+            flex-shrink: 0;
+            color: var(--red)
+        }
+
+        .alert-banner strong {
+            color: var(--red)
+        }
+
+        /* ── Rating stars display ─────────────────────────────────────── */
+        .stars-display {
+            display: flex;
+            gap: 3px;
+            color: var(--amber);
+            font-size: 1rem
+        }
+
+        .stars-display.sm {
+            font-size: .8rem
+        }
+
+        /* ── Filter bar ───────────────────────────────────────────────── */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .filter-chip {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid var(--border2);
+            background: transparent;
+            color: var(--text2);
+            cursor: pointer;
+            font-size: .8rem;
+            font-weight: 500;
+            transition: all .15s;
+        }
+
+        .filter-chip:hover,
+        .filter-chip.active {
+            background: var(--surface2);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* ── Responsive ───────────────────────────────────────────────── */
+        @media(max-width:900px) {
+
+            .scoreboard-header,
+            .scoreboard-row {
+                grid-template-columns: 1fr 1fr 1fr
+            }
+
+            .scoreboard-header>*:nth-child(n+4),
+            .scoreboard-row>*:nth-child(n+4) {
+                display: none
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr
+            }
+
+            .map-container {
+                grid-template-columns: 1fr;
+                height: auto;
+                flex-direction: column
+            }
+
+            .map-sidebar {
+                max-height: 280px
+            }
+
+            #map {
+                height: 400px
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        @media(max-width:600px) {
+            .nav-tabs {
+                display: none
+            }
+
+            .page {
+                padding: 16px
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr
+            }
+
+            .infra-grid {
+                grid-template-columns: 1fr
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Navigation ──────────────────────────────────────────────── -->
+    <nav class="nav">
+        <a class="nav-brand" href="#">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                <path d="M3 20L13 4L23 20H3Z" stroke="#00d9ff" stroke-width="2" fill="none" />
+                <path d="M8 20L13 12L18 20H8Z" fill="#00d9ff" opacity=".3" />
+                <circle cx="13" cy="4" r="2" fill="#00d9ff" />
+            </svg>
+            InfraWatch
+        </a>
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
+            <button class="nav-tab" onclick="showPage('scoreboard')">Scoreboard</button>
+            <button class="nav-tab" onclick="showPage('map')">Map View</button>
+            <button class="nav-tab" onclick="showPage('report')">Report Damage</button>
+            <button class="nav-tab" onclick="showPage('reviews')">Reviews</button>
+            <button class="nav-tab" onclick="showPage('inspect')">Inspections</button>
+        </div>
+        <div class="nav-right">
+            <span class="badge-alert" id="alertCount">3 alerts</span>
+            <button class="btn btn-outline btn-sm" onclick="showPage('report')">+ Report</button>
+        </div>
+    </nav>
+
+    <!-- ── DASHBOARD ──────────────────────────────────────────────── -->
+    <div id="page-dashboard" class="page active">
+        <div class="page-header">
+            <h1>Infrastructure Dashboard</h1>
+            <p>Real-time safety overview of public infrastructure across India</p>
+        </div>
+
+        <div class="alert-banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span><strong>3 critical alerts:</strong> Osmania General Hospital requires immediate action. 2 overdue
+                inspections detected.</span>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card blue">
+                <div class="stat-num">11</div>
+                <div class="stat-label">Total Structures</div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-num" id="stat-safe">6</div>
+                <div class="stat-label">Safe</div>
+            </div>
+            <div class="stat-card amber">
+                <div class="stat-num" id="stat-reno">4</div>
+                <div class="stat-label">Needs Renovation</div>
+            </div>
+            <div class="stat-card red">
+                <div class="stat-num" id="stat-demo">1</div>
+                <div class="stat-label">Demolition Required</div>
+            </div>
+            <div class="stat-card purple">
+                <div class="stat-num">3</div>
+                <div class="stat-label">Pending Reports</div>
+            </div>
+            <div class="stat-card amber">
+                <div class="stat-num">2</div>
+                <div class="stat-label">Overdue Inspections</div>
+            </div>
+        </div>
+
+        <!-- Type breakdown -->
+        <div style="margin-bottom:20px">
+            <h2 style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:14px">By
+                Infrastructure Type</h2>
+            <div class="stats-grid" id="type-stats"></div>
+        </div>
+
+        <h2 style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:14px">All Infrastructure
+        </h2>
+        <div class="filter-bar">
+            <button class="filter-chip active" onclick="filterCards('all',this)">All</button>
+            <button class="filter-chip" onclick="filterCards('SAFE',this)">✅ Safe</button>
+            <button class="filter-chip" onclick="filterCards('NEEDS_RENOVATION',this)">🔧 Renovation</button>
+            <button class="filter-chip" onclick="filterCards('DEMOLITION_REQUIRED',this)">🚨 Critical</button>
+            <button class="filter-chip" onclick="filterCards('BRIDGE',this)">🌉 Bridges</button>
+            <button class="filter-chip" onclick="filterCards('PARK',this)">🌿 Parks</button>
+            <button class="filter-chip" onclick="filterCards('MONUMENT',this)">🏛 Monuments</button>
+        </div>
+        <div class="infra-grid" id="infra-grid"></div>
+    </div>
+
+    <!-- ── SCOREBOARD ─────────────────────────────────────────────── -->
+    <div id="page-scoreboard" class="page">
+        <div class="page-header">
+            <h1>Safety Scoreboard</h1>
+            <p>Live safety scores and inspection history for all registered structures</p>
+        </div>
+        <div class="scoreboard" id="scoreboard-table">
+            <div class="scoreboard-header">
+                <div>Structure</div>
+                <div>Type</div>
+                <div>Safety Score</div>
+                <div>Status</div>
+                <div>Last Inspected</div>
+                <div>Next Due</div>
+            </div>
+            <div id="scoreboard-rows"></div>
+        </div>
+    </div>
+
+    <!-- ── MAP VIEW ───────────────────────────────────────────────── -->
+    <div id="page-map" class="page">
+        <div class="page-header">
+            <h1>Map View</h1>
+            <p>Explore public infrastructure and nearby government spaces on the map</p>
+        </div>
+        <div class="map-container">
+            <div class="map-sidebar">
+                <div class="map-sidebar-header">
+                    <div class="search-wrap">
+                        <span class="search-icon">🔍</span>
+                        <input class="search-input" id="mapSearch" placeholder="Search infrastructure…"
+                            oninput="filterMapList(this.value)">
+                    </div>
+                </div>
+                <div id="map-list"></div>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- ── REPORT DAMAGE ──────────────────────────────────────────── -->
+    <div id="page-report" class="page">
+        <div class="page-header">
+            <h1>Report Infrastructure Damage</h1>
+            <p>Help keep your city safe — report issues with public infrastructure</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+            <div class="form-card">
+                <h2>Submit a Damage Report</h2>
+                <p>Your report is sent directly to the responsible authority for review.</p>
+                <div class="form-grid" id="reportForm">
+                    <div class="form-group">
+                        <label class="form-label">Your Name</label>
+                        <input class="form-input" id="rep-name" placeholder="Full name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input class="form-input" id="rep-email" type="email" placeholder="email@example.com">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Select Infrastructure</label>
+                        <select class="form-select" id="rep-infra"></select>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Severity</label>
+                        <div class="severity-select">
+                            <button class="severity-btn" onclick="setSeverity('LOW',this)">🟢 Low</button>
+                            <button class="severity-btn sel-medium" onclick="setSeverity('MEDIUM',this)">🔵
+                                Medium</button>
+                            <button class="severity-btn" onclick="setSeverity('HIGH',this)">🟠 High</button>
+                            <button class="severity-btn" onclick="setSeverity('CRITICAL',this)">🔴 Critical</button>
+                        </div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Description of Damage</label>
+                        <textarea class="form-textarea" id="rep-desc"
+                            placeholder="Describe the issue in detail — location, size, hazard level…"></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Upload Photo</label>
+                        <div class="file-drop" onclick="document.getElementById('rep-photo').click()">
+                            <div style="font-size:2rem;margin-bottom:6px">📷</div>
+                            <span id="photo-label">Click to upload or drag & drop a photo</span>
+                            <input type="file" id="rep-photo" style="display:none" accept="image/*"
+                                onchange="updatePhotoLabel(this)">
+                        </div>
+                    </div>
+                    <div class="form-group full">
+                        <button class="btn btn-primary" style="width:100%;justify-content:center"
+                            onclick="submitReport()">
+                            📤 Submit Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent reports panel -->
+            <div>
+                <h2 style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:14px">Recent
+                    Reports</h2>
+                <div id="recent-reports" style="display:flex;flex-direction:column;gap:12px"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── REVIEWS ────────────────────────────────────────────────── -->
+    <div id="page-reviews" class="page">
+        <div class="page-header">
+            <h1>Reviews & Ratings</h1>
+            <p>Rate parks, monuments, and government spaces to encourage better maintenance</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+            <div class="form-card">
+                <h2>Leave a Review</h2>
+                <p>Share your experience and help authorities improve public spaces.</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Your Name</label>
+                        <input class="form-input" id="rev-name" placeholder="Full name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input class="form-input" id="rev-email" type="email" placeholder="email@example.com">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Location</label>
+                        <select class="form-select" id="rev-infra"></select>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Overall Rating</label>
+                        <div class="star-rating">
+                            <input type="radio" id="s5" name="rating" value="5"><label for="s5">★</label>
+                            <input type="radio" id="s4" name="rating" value="4"><label for="s4">★</label>
+                            <input type="radio" id="s3" name="rating" value="3"><label for="s3">★</label>
+                            <input type="radio" id="s2" name="rating" value="2"><label for="s2">★</label>
+                            <input type="radio" id="s1" name="rating" value="1"><label for="s1">★</label>
+                        </div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Your Review</label>
+                        <textarea class="form-textarea" id="rev-comment"
+                            placeholder="Describe your visit, cleanliness, safety, accessibility…"></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <button class="btn btn-primary" style="width:100%;justify-content:center"
+                            onclick="submitReview()">
+                            ⭐ Submit Review
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h2 style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:14px">Top
+                    Reviewed Places</h2>
+                <div id="review-list" style="display:flex;flex-direction:column;gap:12px"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── INSPECTIONS ────────────────────────────────────────────── -->
+    <div id="page-inspect" class="page">
+        <div class="page-header">
+            <h1>Inspection Management</h1>
+            <p>Submit and track formal structural inspections</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+            <div class="form-card">
+                <h2>Submit Inspection</h2>
+                <p>For certified inspectors and authority officials.</p>
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label class="form-label">Infrastructure</label>
+                        <select class="form-select" id="insp-infra"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Inspector Name</label>
+                        <input class="form-input" id="insp-name" placeholder="Full name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Certification No.</label>
+                        <input class="form-input" id="insp-cert" placeholder="CE-IND-XXXX">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Inspection Date</label>
+                        <input class="form-input" id="insp-date" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Safety Score (0–100)</label>
+                        <input class="form-input" id="insp-score" type="number" min="0" max="100" placeholder="85"
+                            oninput="updateScorePreview(this.value)">
+                    </div>
+                    <div class="form-group full" id="score-preview-wrap" style="display:none">
+                        <div id="score-preview"></div>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Findings</label>
+                        <textarea class="form-textarea" id="insp-findings"
+                            placeholder="Detailed findings of the inspection…"></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">Recommendations</label>
+                        <textarea class="form-textarea" id="insp-reco" placeholder="Actions recommended…"
+                            style="min-height:70px"></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <button class="btn btn-primary" style="width:100%;justify-content:center"
+                            onclick="submitInspection()">
+                            📋 Submit Inspection
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h2 style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:14px">Recent
+                    Inspections</h2>
+                <div class="timeline" id="inspection-timeline"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Detail Modal ────────────────────────────────────────────── -->
+    <div class="modal-overlay" id="modal" onclick="closeModal(event)">
+        <div class="modal modal-relative">
+            <button class="modal-close" onclick="document.getElementById('modal').classList.remove('open')">✕</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── Data ────────────────────────────────────────────────────────────────────
+        let INFRA = JSON.parse(localStorage.getItem('iw_infra')) || [
+            { id: 1, name: "Durgam Cheruvu Bridge", type: "BRIDGE", addr: "Jubilee Hills, Hyderabad", lat: 17.4316, lng: 78.4071, score: 88, status: "SAFE", authority: "GHMC", contractor: "L&T Construction", year: 2018, lastInspect: "2024-08-10", nextInspect: "2025-02-10", desc: "Cable-stayed bridge over Durgam Cheruvu lake.", reports: 1, avgRating: 0 },
+            { id: 2, name: "Airport Expressway NH 44", type: "ROAD", addr: "Shamshabad, Hyderabad", lat: 17.2403, lng: 78.4294, score: 62, status: "NEEDS_RENOVATION", authority: "NHAI", contractor: "Dilip Buildcon Ltd", year: 2008, lastInspect: "2024-06-20", nextInspect: "2024-12-20", desc: "6-lane expressway to Rajiv Gandhi International Airport.", reports: 1, avgRating: 0 },
+            { id: 3, name: "Charminar Monument", type: "MONUMENT", addr: "Old City, Hyderabad", lat: 17.3616, lng: 78.4747, score: 79, status: "SAFE", authority: "ASI", contractor: "ASI Maintenance", year: 1591, lastInspect: "2024-09-05", nextInspect: "2025-03-05", desc: "16th-century mosque and landmark of Hyderabad.", reports: 0, avgRating: 4.0 },
+            { id: 4, name: "KBR National Park", type: "PARK", addr: "Jubilee Hills, Hyderabad", lat: 17.4239, lng: 78.4378, score: 91, status: "SAFE", authority: "TG Forest Dept", contractor: "N/A", year: 1994, lastInspect: "2024-10-01", nextInspect: "2025-04-01", desc: "390-acre urban national park.", reports: 0, avgRating: 4.5 },
+            { id: 5, name: "Osmania General Hospital", type: "HOSPITAL", addr: "Afzalgunj, Hyderabad", lat: 17.3783, lng: 78.4744, score: 35, status: "DEMOLITION_REQUIRED", authority: "TG Health Dept", contractor: "Various", year: 1925, lastInspect: "2024-03-15", nextInspect: "2024-09-15", desc: "Century-old government hospital.", reports: 1, avgRating: 0 },
+            { id: 6, name: "India Gate", type: "MONUMENT", addr: "Rajpath, New Delhi", lat: 28.6129, lng: 77.2295, score: 85, status: "SAFE", authority: "CPWD", contractor: "CPWD", year: 1931, lastInspect: "2024-11-12", nextInspect: "2025-05-12", desc: "War memorial on Rajpath.", reports: 0, avgRating: 4.8 },
+            { id: 7, name: "Delhi Metro Yamuna Bridge", type: "BRIDGE", addr: "Yamuna River, Delhi", lat: 28.6283, lng: 77.2910, score: 72, status: "NEEDS_RENOVATION", authority: "DMRC", contractor: "Gammon India", year: 2005, lastInspect: "2024-07-22", nextInspect: "2025-01-22", desc: "Metro viaduct crossing the Yamuna.", reports: 0, avgRating: 0 },
+            { id: 8, name: "Bandra–Worli Sea Link", type: "BRIDGE", addr: "Bandra, Mumbai", lat: 19.0350, lng: 72.8175, score: 93, status: "SAFE", authority: "MSRDC", contractor: "HCC Gamuda JV", year: 2009, lastInspect: "2024-10-18", nextInspect: "2025-04-18", desc: "8-lane cable-stayed bridge over Mahim Bay.", reports: 0, avgRating: 4.7 },
+            { id: 9, name: "Sanjay Gandhi National Park", type: "PARK", addr: "Borivali East, Mumbai", lat: 19.2147, lng: 72.9106, score: 88, status: "SAFE", authority: "MH Forest Dept", contractor: "N/A", year: 1969, lastInspect: "2024-08-30", nextInspect: "2025-02-28", desc: "104 km² protected forest inside Mumbai.", reports: 0, avgRating: 4.6 },
+            { id: 10, name: "Pamban Bridge", type: "BRIDGE", addr: "Rameswaram, Tamil Nadu", lat: 9.2833, lng: 79.3102, score: 44, status: "NEEDS_RENOVATION", authority: "Southern Railway", contractor: "Indian Railways", year: 1914, lastInspect: "2024-05-07", nextInspect: "2024-11-07", desc: "Historic railway bridge over Palk Strait.", reports: 0, avgRating: 0 },
+            { id: 11, name: "Government Museum Chennai", type: "GOVERNMENT_BUILDING", addr: "Egmore, Chennai", lat: 13.0707, lng: 80.2600, score: 68, status: "NEEDS_RENOVATION", authority: "TN Museums Dept", contractor: "PWD Chennai", year: 1851, lastInspect: "2024-04-14", nextInspect: "2024-10-14", desc: "One of India's oldest museums.", reports: 0, avgRating: 3.8 }
+        ];
+
+        let INSPECTIONS = JSON.parse(localStorage.getItem('iw_inspections')) || [
+            { infraId: 1, date: "2024-08-10", inspector: "Dr. Anitha Reddy", score: 88, outcome: "PASS", findings: "Structure in good condition. Minor surface wear on walkway joints within tolerance." },
+            { infraId: 1, date: "2023-12-10", inspector: "Suresh Verma", score: 93, outcome: "PASS", findings: "Excellent condition. Cable tension within design parameters." },
+            { infraId: 2, date: "2024-06-20", inspector: "Dr. Anitha Reddy", score: 62, outcome: "MINOR_ISSUES", findings: "Surface cracking in three sections. Guardrail paint faded. Drainage partially blocked." },
+            { infraId: 5, date: "2024-03-15", inspector: "K. Raghavendra", score: 35, outcome: "UNSAFE", findings: "CRITICAL: Roof structural compromise in Wings B and C. Load-bearing columns showing severe corrosion. Immediate closure of upper floors recommended." },
+            { infraId: 3, date: "2024-09-05", inspector: "ASI Inspector", score: 79, outcome: "PASS", findings: "Heritage structure stable. Some mortar pointing needed on east face." },
+            { infraId: 8, date: "2024-10-18", inspector: "MSRDC Inspector", score: 93, outcome: "PASS", findings: "Cable stays in excellent condition. Deck surface clear. All safety systems functional." },
+            { infraId: 10, date: "2024-05-07", inspector: "Railway Inspector", score: 44, outcome: "MAJOR_ISSUES", findings: "Significant corrosion on the bascule span bearings. Some rivets showing fatigue. Renovation required before next monsoon." },
+        ];
+
+        let REPORTS = JSON.parse(localStorage.getItem('iw_reports')) || [
+            { infraId: 1, name: "Rahul Mehta", desc: "Large pothole on pedestrian walkway near north pylon.", severity: "HIGH", status: "UNDER_REVIEW", date: "2025-03-14" },
+            { infraId: 2, name: "Sujata Pillai", desc: "Guardrail completely missing at 12 km mark. Dangerous drop.", severity: "CRITICAL", status: "PENDING", date: "2025-03-17" },
+            { infraId: 5, name: "Dr. Vijay Kumar", desc: "Severe roof leakage in Ward 3 — water near electrical fittings.", severity: "CRITICAL", status: "IN_PROGRESS", date: "2025-03-07" },
+        ];
+
+        let REVIEWS = JSON.parse(localStorage.getItem('iw_reviews')) || [
+            { infraId: 4, name: "Meena Rao", rating: 5, comment: "Beautiful park, well maintained. Great jogging track!", date: "2025-01-12" },
+            { infraId: 4, name: "Arun Nair", rating: 4, comment: "Nice greenery. Parking could be improved on weekends.", date: "2025-02-03" },
+            { infraId: 3, name: "Fatima Begum", rating: 5, comment: "Magnificent historical structure. Stunning at night.", date: "2025-01-28" },
+            { infraId: 3, name: "Kiran Singh", rating: 3, comment: "Surroundings are crowded and littered. Monument itself is great.", date: "2025-02-15" },
+            { infraId: 6, name: "Ananya Sharma", rating: 5, comment: "Iconic landmark! Beautifully maintained. Night illumination is spectacular.", date: "2025-03-01" },
+            { infraId: 8, name: "Rohan D'Souza", rating: 5, comment: "Drives are smooth, panoramic sea views. Engineering marvel!", date: "2025-02-20" },
+        ];
+
+        // ── Helpers ─────────────────────────────────────────────────────────────────
+        const TYPE_ICONS = { BRIDGE: "🌉", ROAD: "🛣️", SCHOOL: "🏫", MONUMENT: "🏛️", PARK: "🌿", HOSPITAL: "🏥", GOVERNMENT_BUILDING: "🏛️", WATER_SUPPLY: "💧", DRAINAGE: "🕳️", OTHER: "🔧" };
+        const TYPE_LABELS = { BRIDGE: "Bridge", ROAD: "Road", SCHOOL: "School", MONUMENT: "Monument", PARK: "Park", HOSPITAL: "Hospital", GOVERNMENT_BUILDING: "Gov. Building", WATER_SUPPLY: "Water Supply", DRAINAGE: "Drainage", OTHER: "Other" };
+
+        let ACTIVITIES = JSON.parse(localStorage.getItem('iw_activities')) || [];
+        let CURRENT_USER = JSON.parse(localStorage.getItem('iw_user')) || { name: 'Guest', email: '' };
+
+        function saveData() {
+            localStorage.setItem('iw_infra', JSON.stringify(INFRA));
+            localStorage.setItem('iw_inspections', JSON.stringify(INSPECTIONS));
+            localStorage.setItem('iw_reports', JSON.stringify(REPORTS));
+            localStorage.setItem('iw_reviews', JSON.stringify(REVIEWS));
+            localStorage.setItem('iw_activities', JSON.stringify(ACTIVITIES));
+            localStorage.setItem('iw_user', JSON.stringify(CURRENT_USER));
+        }
+
+        function logActivity(type, description) {
+            ACTIVITIES.unshift({ type, description, date: new Date().toISOString().slice(0, 10), time: new Date().toLocaleTimeString() });
+            saveData();
+        }
+
+        function statusPill(status) {
+            const map = { SAFE: ["pill-safe", "✅ Safe"], NEEDS_RENOVATION: ["pill-renovation", "🔧 Renovation"], DEMOLITION_REQUIRED: ["pill-demolition", "🚨 Demolition"] };
+            const [cls, txt] = map[status] || ["pill-pending", status];
+            return `<span class="status-pill ${cls}">${txt}</span>`;
+        }
+
+        function scoreBadge(score, status) {
+            const cls = status === "SAFE" ? "score-safe" : status === "NEEDS_RENOVATION" ? "score-renovation" : "score-demolition";
+            return `<div class="score-badge ${cls}">${score}</div>`;
+        }
+
+        function scoreBarColor(score) {
+            if (score >= 75) return "var(--green)";
+            if (score >= 40) return "var(--amber)";
+            return "var(--red)";
+        }
+
+        function stars(rating, size = "") {
+            const full = Math.round(rating);
+            return `<div class="stars-display ${size}">${"★".repeat(full)}${"☆".repeat(5 - full)}</div>`;
+        }
+
+        function toast(msg, isError = false) {
+            const t = document.getElementById("toast");
+            t.textContent = msg;
+            t.className = "toast" + (isError ? " error" : "") + " show";
+            setTimeout(() => t.className = "toast", 3000);
+        }
+
+        // ── Pages ────────────────────────────────────────────────────────────────────
+        function showPage(name) {
+            document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+            document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
+            document.getElementById("page-" + name).classList.add("active");
+            const tabs = { dashboard: 0, scoreboard: 1, map: 2, report: 3, reviews: 4, inspect: 5 };
+            document.querySelectorAll(".nav-tab")[tabs[name]]?.classList.add("active");
+            if (name === "map") setTimeout(initMap, 50);
+        }
+
+        // ── Dashboard ────────────────────────────────────────────────────────────────
+        function renderTypeStats() {
+            const types = {};
+            INFRA.forEach(i => { types[i.type] = (types[i.type] || 0) + 1 });
+            const icons = ["blue", "green", "amber", "purple", "red", "blue", "amber"];
+            let i = 0;
+            const el = document.getElementById("type-stats");
+            el.innerHTML = Object.entries(types).map(([t, c]) => `
+    <div class="stat-card ${icons[i++ % icons.length]}">
+      <div class="stat-num">${c}</div>
+      <div class="stat-label">${TYPE_ICONS[t] || ""} ${TYPE_LABELS[t] || t}</div>
+    </div>
+  `).join("");
+        }
+
+        function renderInfraGrid(filter = "all") {
+            const grid = document.getElementById("infra-grid");
+            const items = INFRA.filter(i => {
+                if (filter === "all") return true;
+                return i.status === filter || i.type === filter;
+            });
+            grid.innerHTML = items.map(i => `
+    <div class="infra-card" onclick="openModal(${i.id})">
+      <div class="infra-card-head">
+        <div class="infra-icon">${TYPE_ICONS[i.type]}</div>
+        <div style="flex:1;min-width:0">
+          <div class="infra-title">${i.name}</div>
+          <div class="infra-addr">📍 ${i.addr}</div>
+        </div>
+        ${scoreBadge(i.score, i.status)}
+      </div>
+      <div class="infra-meta">
+        <span class="infra-type-badge">${TYPE_LABELS[i.type]}</span>
+        ${statusPill(i.status)}
+        ${i.avgRating > 0 ? `<span style="font-size:.8rem">${stars(i.avgRating, "sm")} ${i.avgRating.toFixed(1)}</span>` : ""}
+      </div>
+      <div class="infra-card-footer">
+        <span class="infra-inspect-date">🔍 Last: ${i.lastInspect}</span>
+        <span class="infra-inspect-date">Next: ${i.nextInspect}</span>
+      </div>
+    </div>
+  `).join("");
+        }
+
+        function filterCards(f, btn) {
+            document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("active"));
+            btn.classList.add("active");
+            renderInfraGrid(f);
+        }
+
+        // ── Scoreboard ───────────────────────────────────────────────────────────────
+        function renderScoreboard() {
+            const sorted = [...INFRA].sort((a, b) => a.score - b.score);
+            document.getElementById("scoreboard-rows").innerHTML = sorted.map(i => `
+    <div class="scoreboard-row" onclick="openModal(${i.id})">
+      <div>
+        <div class="sb-name">${TYPE_ICONS[i.type]} ${i.name}</div>
+        <div class="sb-sub">📍 ${i.addr}</div>
+      </div>
+      <div><span class="infra-type-badge">${TYPE_LABELS[i.type]}</span></div>
+      <div>
+        <div class="score-bar">
+          <div class="score-bar-track">
+            <div class="score-bar-fill" style="width:${i.score}%;background:${scoreBarColor(i.score)}"></div>
+          </div>
+          <span class="score-val" style="color:${scoreBarColor(i.score)}">${i.score}</span>
+        </div>
+      </div>
+      <div>${statusPill(i.status)}</div>
+      <div style="font-size:.82rem;color:var(--text2)">${i.lastInspect}</div>
+      <div style="font-size:.82rem;color:var(--text2)">${i.nextInspect}</div>
+    </div>
+  `).join("");
+        }
+
+        // ── Map ──────────────────────────────────────────────────────────────────────
+        let map = null, markers = {};
+        function initMap() {
+            if (map) return;
+            map = L.map("map", { center: [20.5937, 78.9629], zoom: 5, zoomControl: true });
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: "© OpenStreetMap contributors", maxZoom: 18
+            }).addTo(map);
+
+            INFRA.forEach(i => {
+                const color = i.status === "SAFE" ? "#00e5a0" : i.status === "NEEDS_RENOVATION" ? "#ffb830" : "#ff4757";
+                const icon = L.divIcon({
+                    html: `<div style="background:${color};width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:3px solid rgba(0,0,0,.3);box-shadow:0 2px 8px rgba(0,0,0,.4)">${TYPE_ICONS[i.type]}</div>`,
+                    className: "", iconSize: [34, 34], iconAnchor: [17, 17]
+                });
+                const m = L.marker([i.lat, i.lng], { icon })
+                    .addTo(map)
+                    .bindPopup(`<b>${i.name}</b><br>${i.addr}<br><b>Score: ${i.score}</b>`);
+                m.on("click", () => openModal(i.id));
+                markers[i.id] = m;
+            });
+
+            renderMapList(INFRA);
+        }
+
+        function renderMapList(items) {
+            document.getElementById("map-list").innerHTML = items.map(i => `
+    <div class="map-list-item" id="ml-${i.id}" onclick="focusMarker(${i.id})">
+      <div class="map-list-icon">${TYPE_ICONS[i.type]}</div>
+      <div>
+        <div class="map-list-name">${i.name}</div>
+        <div class="map-list-addr">${i.addr}</div>
+        <div style="margin-top:5px">${statusPill(i.status)}</div>
+      </div>
+    </div>
+  `).join("");
+        }
+
+        function focusMarker(id) {
+            const i = INFRA.find(x => x.id === id);
+            if (!i || !map) return;
+            map.flyTo([i.lat, i.lng], 14, { duration: 1.2 });
+            markers[id]?.openPopup();
+            document.querySelectorAll(".map-list-item").forEach(el => el.classList.remove("selected"));
+            document.getElementById("ml-" + id)?.classList.add("selected");
+        }
+
+        function filterMapList(q) {
+            const filtered = INFRA.filter(i => i.name.toLowerCase().includes(q.toLowerCase()) || i.addr.toLowerCase().includes(q.toLowerCase()));
+            renderMapList(filtered);
+        }
+
+        // ── Modal ────────────────────────────────────────────────────────────────────
+        function openModal(id) {
+            const i = INFRA.find(x => x.id === id);
+            if (!i) return;
+            const inspections = INSPECTIONS.filter(x => x.infraId === id);
+            const reports = REPORTS.filter(x => x.infraId === id);
+            const reviews = REVIEWS.filter(x => x.infraId === id);
+            const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
+
+            const outcomeColor = { PASS: "var(--green)", MINOR_ISSUES: "var(--amber)", MAJOR_ISSUES: "var(--red)", UNSAFE: "var(--red)" };
+            const outcomeLabel = { PASS: "✅ Pass", MINOR_ISSUES: "⚠️ Minor Issues", MAJOR_ISSUES: "🔴 Major Issues", UNSAFE: "🚨 Unsafe" };
+
+            document.getElementById("modal-content").innerHTML = `
+    <div class="modal-hero">
+      <div class="modal-icon">${TYPE_ICONS[i.type]}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+          <div class="modal-title">${i.name}</div>
+          ${statusPill(i.status)}
+        </div>
+        <div class="modal-addr">📍 ${i.addr}</div>
+        ${avgRating > 0 ? `<div style="margin-top:8px;display:flex;align-items:center;gap:6px">${stars(avgRating)} <span style="color:var(--text2);font-size:.82rem">${avgRating.toFixed(1)}/5 (${reviews.length} reviews)</span></div>` : ""}
+      </div>
+      <div style="text-align:center">
+        ${scoreBadge(i.score, i.status)}
+        <div style="font-size:.7rem;color:var(--text3);margin-top:4px">SAFETY<br>SCORE</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">
+        <h3>Details</h3>
+        <div class="info-grid">
+          <div class="info-item"><label>Type</label><span>${TYPE_ICONS[i.type]} ${TYPE_LABELS[i.type]}</span></div>
+          <div class="info-item"><label>Year Built</label><span>${i.year}</span></div>
+          <div class="info-item"><label>Authority</label><span>${i.authority}</span></div>
+          <div class="info-item"><label>Contractor</label><span>${i.contractor}</span></div>
+          <div class="info-item"><label>Last Inspection</label><span>${i.lastInspect}</span></div>
+          <div class="info-item"><label>Next Inspection Due</label><span style="color:${new Date(i.nextInspect) < new Date() ? 'var(--red)' : 'var(--text)'}">${i.nextInspect}</span></div>
+        </div>
+        <p style="color:var(--text2);font-size:.875rem;margin-top:12px">${i.desc}</p>
+      </div>
+
+      ${inspections.length ? `
+      <div class="modal-section">
+        <h3>Inspection History</h3>
+        <div style="display:flex;flex-direction:column;gap:10px">
+        ${inspections.map(ins => `
+          <div class="inspection-item">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="inspection-date">📋 ${ins.date}</div>
+              <span style="font-size:.78rem;font-weight:600;color:${outcomeColor[ins.outcome]}">${outcomeLabel[ins.outcome]}</span>
+            </div>
+            <div class="inspection-inspector">Inspector: ${ins.inspector} — Score: <strong style="color:${scoreBarColor(ins.score)}">${ins.score}/100</strong></div>
+            <div class="inspection-findings">${ins.findings}</div>
+          </div>
+        `).join("")}
+        </div>
+      </div>
+      `: ""}
+
+      ${reports.length ? `
+      <div class="modal-section">
+        <h3>Damage Reports (${reports.length})</h3>
+        <div style="display:flex;flex-direction:column;gap:10px">
+        ${reports.map(r => `
+          <div class="inspection-item" style="border-left:3px solid ${r.severity === 'CRITICAL' ? 'var(--red)' : r.severity === 'HIGH' ? 'var(--amber)' : 'var(--accent)'}">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:.8rem;font-weight:700;color:${r.severity === 'CRITICAL' ? 'var(--red)' : r.severity === 'HIGH' ? 'var(--amber)' : 'var(--accent)'}">${r.severity}</span>
+              <span style="font-size:.75rem;color:var(--text3)">${r.date}</span>
+            </div>
+            <div style="font-size:.875rem">${r.desc}</div>
+            <div style="margin-top:6px">${statusPill(r.status.replace("_", " "))}</div>
+          </div>
+        `).join("")}
+        </div>
+      </div>
+      `: ""}
+
+      ${reviews.length ? `
+      <div class="modal-section">
+        <h3>Reviews (${reviews.length})</h3>
+        <div style="display:flex;flex-direction:column;gap:10px">
+        ${reviews.map(r => `
+          <div class="inspection-item">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <strong style="font-size:.875rem">${r.name}</strong>
+              ${stars(r.rating, "sm")}
+            </div>
+            <div style="font-size:.875rem;color:var(--text2)">${r.comment}</div>
+          </div>
+        `).join("")}
+        </div>
+      </div>
+      `: ""}
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal').classList.remove('open');showPage('report')">📷 Report Damage</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal').classList.remove('open');showPage('reviews')">⭐ Leave Review</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('modal').classList.remove('open');showPage('map');setTimeout(()=>focusMarker(${id}),200)">🗺️ View on Map</button>
+      </div>
+    </div>
+  `;
+            document.getElementById("modal").classList.add("open");
+        }
+
+        function closeModal(e) {
+            if (e.target.id === "modal") document.getElementById("modal").classList.remove("open");
+        }
+
+        // ── Report form ───────────────────────────────────────────────────────────────
+        let selectedSeverity = "MEDIUM";
+        function setSeverity(s, btn) {
+            selectedSeverity = s;
+            document.querySelectorAll(".severity-btn").forEach(b => b.className = "severity-btn");
+            const map = { LOW: "sel-low", MEDIUM: "sel-medium", HIGH: "sel-high", CRITICAL: "sel-critical" };
+            btn.className = "severity-btn " + map[s];
+        }
+
+        function updatePhotoLabel(input) {
+            document.getElementById("photo-label").textContent = input.files[0]?.name || "Click to upload or drag & drop";
+        }
+
+        function populateSelects() {
+            const infraSelect = `<option value="">— Select —</option>` + INFRA.map(i => `<option value="${i.id}">${TYPE_ICONS[i.type]} ${i.name}</option>`).join("");
+            document.getElementById("rep-infra").innerHTML = infraSelect;
+            document.getElementById("rev-infra").innerHTML = infraSelect;
+            document.getElementById("insp-infra").innerHTML = infraSelect;
+        }
+
+        function submitReport() {
+            const name = document.getElementById("rep-name").value.trim();
+            const email = document.getElementById("rep-email").value.trim();
+            const infraId = parseInt(document.getElementById("rep-infra").value);
+            const desc = document.getElementById("rep-desc").value.trim();
+            if (!name || !infraId || !desc) { toast("Please fill in all required fields.", true); return; }
+            const infra = INFRA.find(i => i.id === infraId);
+            REPORTS.unshift({ infraId, name, desc, severity: selectedSeverity, status: "PENDING", date: new Date().toISOString().slice(0, 10) });
+            infra.reports = (infra.reports || 0) + 1;
+            saveData();
+            logActivity('REPORT', `Reported damage at ${infra.name}`);
+            renderRecentReports();
+            document.getElementById("rep-name").value = "";
+            document.getElementById("rep-email").value = "";
+            document.getElementById("rep-desc").value = "";
+            toast("✅ Report submitted! Authorities have been notified.");
+        }
+
+        function renderRecentReports() {
+            const sevColor = { LOW: "var(--green)", MEDIUM: "var(--accent)", HIGH: "var(--amber)", CRITICAL: "var(--red)" };
+            document.getElementById("recent-reports").innerHTML = REPORTS.slice(0, 6).map(r => {
+                const infra = INFRA.find(i => i.id === r.infraId);
+                return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${sevColor[r.severity]};border-radius:var(--r);padding:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <strong style="font-size:.875rem">${infra ? infra.name : "Unknown"}</strong>
+        <span style="font-size:.75rem;color:var(--text3)">${r.date}</span>
+      </div>
+      <div style="font-size:.82rem;color:var(--text2);margin-bottom:8px">${r.desc.slice(0, 90)}${r.desc.length > 90 ? "…" : ""}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:.75rem;font-weight:700;color:${sevColor[r.severity]}">${r.severity}</span>
+        ${statusPill(r.status)}
+      </div>
+    </div>`;
+            }).join("");
+        }
+
+        // ── Review form ───────────────────────────────────────────────────────────────
+        function submitReview() {
+            const name = document.getElementById("rev-name").value.trim();
+            const infraId = parseInt(document.getElementById("rev-infra").value);
+            const rating = parseInt(document.querySelector('input[name="rating"]:checked')?.value || 0);
+            const comment = document.getElementById("rev-comment").value.trim();
+            if (!name || !infraId || !rating) { toast("Please select a location, enter your name, and choose a rating.", true); return; }
+            REVIEWS.unshift({ infraId, name, rating, comment, date: new Date().toISOString().slice(0, 10) });
+            const infra = INFRA.find(i => i.id === infraId);
+            if (infra) {
+                const infRev = REVIEWS.filter(r => r.infraId === infraId);
+                infra.avgRating = infRev.reduce((s, r) => s + r.rating, 0) / infRev.length;
+            }
+            saveData();
+            logActivity('REVIEW', `Reviewed ${infra ? infra.name : 'Unknown'} with ${rating} stars`);
+            renderReviewList();
+            document.getElementById("rev-name").value = "";
+            document.getElementById("rev-comment").value = "";
+            toast("⭐ Review submitted! Thank you for helping improve our public spaces.");
+        }
+
+        function renderReviewList() {
+            const top = INFRA.filter(i => i.avgRating > 0).sort((a, b) => b.avgRating - a.avgRating).slice(0, 6);
+            document.getElementById("review-list").innerHTML = top.map(i => {
+                const revs = REVIEWS.filter(r => r.infraId === i.id).slice(0, 2);
+                return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-size:1.3rem">${TYPE_ICONS[i.type]}</span>
+        <div>
+          <div style="font-weight:600;font-size:.9rem">${i.name}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:2px">${stars(i.avgRating, "sm")} <span style="font-size:.78rem;color:var(--text2)">${i.avgRating.toFixed(1)}</span></div>
+        </div>
+      </div>
+      ${revs.map(r => `<div style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px">
+        <div style="font-size:.78rem;font-weight:600">${r.name} ${stars(r.rating, "sm")}</div>
+        <div style="font-size:.8rem;color:var(--text2);margin-top:2px">${r.comment.slice(0, 80)}${r.comment.length > 80 ? "…" : ""}</div>
+      </div>`).join("")}
+    </div>`;
+            }).join("");
+        }
+
+        // ── Inspection form ───────────────────────────────────────────────────────────
+        function updateScorePreview(val) {
+            const score = parseInt(val) || 0;
+            const wrap = document.getElementById("score-preview-wrap");
+            const prev = document.getElementById("score-preview");
+            if (!val) { wrap.style.display = "none"; return; }
+            wrap.style.display = "block";
+            const status = score >= 75 ? "SAFE" : score >= 40 ? "NEEDS_RENOVATION" : "DEMOLITION_REQUIRED";
+            const label = score >= 75 ? "✅ Structure is SAFE" : score >= 40 ? "🔧 RENOVATION Required" : "🚨 DEMOLITION Required";
+            const color = scoreBarColor(score);
+            prev.innerHTML = `<div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px">
+    ${scoreBadge(score, status)}
+    <div>
+      <div style="font-weight:700;color:${color}">${label}</div>
+      <div style="font-size:.8rem;color:var(--text2);margin-top:2px">Based on score: ${score}/100</div>
+    </div>
+  </div>`;
+        }
+
+        function submitInspection() {
+            const name = document.getElementById("insp-name").value.trim();
+            const infraId = parseInt(document.getElementById("insp-infra").value);
+            const score = parseInt(document.getElementById("insp-score").value) || 0;
+            const date = document.getElementById("insp-date").value;
+            const findings = document.getElementById("insp-findings").value.trim();
+            if (!name || !infraId || !date || score < 0) { toast("Please fill in all required fields.", true); return; }
+            const outcome = score >= 75 ? "PASS" : score >= 55 ? "MINOR_ISSUES" : score >= 40 ? "MAJOR_ISSUES" : "UNSAFE";
+            INSPECTIONS.unshift({ infraId, date, inspector: name, score, outcome, findings });
+            const infra = INFRA.find(i => i.id === infraId);
+            if (infra) { infra.score = score; infra.lastInspect = date; infra.status = score >= 75 ? "SAFE" : score >= 40 ? "NEEDS_RENOVATION" : "DEMOLITION_REQUIRED"; }
+            saveData();
+            logActivity('INSPECTION', `Submitted inspection for ${infra ? infra.name : 'Unknown'}`);
+            renderTimeline();
+            renderScoreboard();
+            renderInfraGrid();
+            document.getElementById("insp-name").value = "";
+            document.getElementById("insp-score").value = "";
+            document.getElementById("insp-date").value = "";
+            document.getElementById("insp-findings").value = "";
+            document.getElementById("score-preview-wrap").style.display = "none";
+            toast("📋 Inspection submitted and scores updated.");
+        }
+
+        function renderTimeline() {
+            const outcomeClass = { PASS: "tl-pass", MINOR_ISSUES: "tl-minor", MAJOR_ISSUES: "tl-major", UNSAFE: "tl-unsafe" };
+            const outcomeLabel = { PASS: "✅ Pass", MINOR_ISSUES: "⚠️ Minor Issues", MAJOR_ISSUES: "🔴 Major Issues", UNSAFE: "🚨 Unsafe" };
+            document.getElementById("inspection-timeline").innerHTML = INSPECTIONS.slice(0, 8).map(ins => {
+                const infra = INFRA.find(i => i.id === ins.infraId);
+                return `<div class="timeline-item ${outcomeClass[ins.outcome]}">
+      <div class="timeline-dot"></div>
+      <div class="timeline-content">
+        <div class="tl-date">${ins.date}</div>
+        <div class="tl-title">${infra ? infra.name : "Unknown"}</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:.78rem;font-weight:700;color:${scoreBarColor(ins.score)}">${ins.score}/100</span>
+          <span style="font-size:.75rem;color:var(--text2)">${outcomeLabel[ins.outcome]}</span>
+        </div>
+        <div style="font-size:.8rem;color:var(--text2)">${ins.findings.slice(0, 100)}${ins.findings.length > 100 ? "…" : ""}</div>
+      </div>
+    </div>`;
+            }).join("");
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────────────
+        document.addEventListener("DOMContentLoaded", () => {
+            // Pre-compute ratings
+            INFRA.forEach(i => {
+                const revs = REVIEWS.filter(r => r.infraId === i.id);
+                i.avgRating = revs.length ? revs.reduce((s, r) => s + r.rating, 0) / revs.length : 0;
+            });
+
+            renderTypeStats();
+            renderInfraGrid();
+            renderScoreboard();
+            populateSelects();
+            renderRecentReports();
+            renderReviewList();
+            renderTimeline();
+
+            // Set today's date as default for inspection form
+            document.getElementById("insp-date").value = new Date().toISOString().slice(0, 10);
+        });
+    </script>
+</body>
+
+</html>
