@@ -1,0 +1,8 @@
+/* Design tokens and CSS custom properties */
+:root {
+    --primary-color: #3498db;
+    --secondary-color: #2ecc71;
+    --font-family: 'Arial', sans-serif;
+    --font-size: 16px;
+    --spacing-unit: 8px;
+}
